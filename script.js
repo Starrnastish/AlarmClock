@@ -87,11 +87,36 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="notification-content">
                 <h3>${alarm.name}</h3>
                 <p>${alarm.time}</p>
+                <button class="btn-snooze">Отложить на 5 минут</button>
                 <button class="btn-stop">Остановить</button>
             </div>
         `;
         
         document.body.appendChild(notification);
+        
+        // Отложить будильник
+        notification.querySelector('.btn-snooze').addEventListener('click', function() {
+            audio.pause();
+            const snoozeTime = new Date();
+            snoozeTime.setMinutes(snoozeTime.getMinutes() + 5);
+            
+            // Create a new alarm object for the snooze
+            const snoozedAlarm = {
+                id: Date.now(),
+                name: alarm.name,
+                time: snoozeTime.toTimeString().split(' ')[0].substring(0, 5),
+                days: alarm.days,
+                sound: alarm.sound,
+                active: true,
+                repeatWeekly: alarm.repeatWeekly,
+                date: alarm.date,
+                lastTriggered: null
+            };
+            
+            alarms.push(snoozedAlarm); // Add the snoozed alarm to the alarms
+            saveAlarms();
+            document.body.removeChild(notification);
+        });
         
         // Остановка будильника
         notification.querySelector('.btn-stop').addEventListener('click', function() {
@@ -226,72 +251,76 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Отрисовка списка будильников
-    function renderAlarms() {
-        alarmsContainer.innerHTML = '';
+   // Отрисовка списка будильников
+function renderAlarms() {
+    alarmsContainer.innerHTML = '';
+    
+    if (alarms.length === 0) {
+        alarmsContainer.innerHTML = '<p>У вас пока нет будильников</p>';
+        return;
+    }
+    
+    // Сортируем будильники по времени
+    alarms.sort((a, b) => {
+        const timeA = a.time.split(':').map(Number);
+        const timeB = b.time.split(':').map(Number);
         
-        if (alarms.length === 0) {
-            alarmsContainer.innerHTML = '<p>У вас пока нет будильников</p>';
-            return;
+        if (timeA[0] !== timeB[0]) return timeA[0] - timeB[0];
+        return timeA[1] - timeB[1];
+    });
+    
+    const dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    
+    alarms.forEach(alarm => {
+        const alarmElement = document.createElement('div');
+        alarmElement.className = `alarm-item ${alarm.active ? '' : 'disabled'}`;
+        
+        let daysInfo = '';
+        if (alarm.repeatWeekly) {
+            daysInfo = alarm.days.map(day => dayNames[parseInt(day)]).join(', ');
+        } else {
+            const date = new Date(alarm.date);
+            daysInfo = `Разовый (${date.toLocaleDateString('ru-RU')})`;
         }
+
+        // Добавляем отметку "Отложенный", если это отложенный будильник
+        const snoozedLabel = alarm.isSnoozed ? '<span class="snoozed-label">(Отложенный)</span>' : '';
+
+        alarmElement.innerHTML = `
+            <div class="alarm-info">
+                <div class="alarm-name">${alarm.name} ${snoozedLabel}</div>
+                <div class="alarm-time">${alarm.time}</div>
+                <div class="alarm-days">${daysInfo}</div>
+                <div class="alarm-sound">${getSoundName(alarm.sound)}</div>
+            </div>
+            <div class="alarm-actions">
+                <button class="btn-toggle">${alarm.active ? 'Выкл' : 'Вкл'}</button>
+                <button class="btn-edit">Изменить</button>
+                <button class="btn-delete">Удалить</button>
+            </div>
+        `;
         
-        // Сортируем будильники по времени
-        alarms.sort((a, b) => {
-            const timeA = a.time.split(':').map(Number);
-            const timeB = b.time.split(':').map(Number);
-            
-            if (timeA[0] !== timeB[0]) return timeA[0] - timeB[0];
-            return timeA[1] - timeB[1];
+        // Обработчики событий для кнопок
+        alarmElement.querySelector('.btn-toggle').addEventListener('click', () => {
+            alarm.active = !alarm.active;
+            saveAlarms();
+            renderAlarms();
         });
         
-        const dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+        alarmElement.querySelector('.btn-edit').addEventListener('click', () => {
+            editAlarm(alarm);
+        });
         
-        alarms.forEach(alarm => {
-            const alarmElement = document.createElement('div');
-            alarmElement.className = `alarm-item ${alarm.active ? '' : 'disabled'}`;
-            
-            let daysInfo = '';
-            if (alarm.repeatWeekly) {
-                daysInfo = alarm.days.map(day => dayNames[parseInt(day)]).join(', ');
-            } else {
-                const date = new Date(alarm.date);
-                daysInfo = `Разовый (${date.toLocaleDateString('ru-RU')})`;
-            }
-            
-            alarmElement.innerHTML = `
-                <div class="alarm-info">
-                    <div class="alarm-name">${alarm.name}</div>
-                    <div class="alarm-time">${alarm.time}</div>
-                    <div class="alarm-days">${daysInfo}</div>
-                    <div class="alarm-sound">${getSoundName(alarm.sound)}</div>
-                </div>
-                <div class="alarm-actions">
-                    <button class="btn-toggle">${alarm.active ? 'Выкл' : 'Вкл'}</button>
-                    <button class="btn-edit">Изменить</button>
-                    <button class="btn-delete">Удалить</button>
-                </div>
-            `;
-            
-            // Обработчики событий для кнопок
-            alarmElement.querySelector('.btn-toggle').addEventListener('click', () => {
-                alarm.active = !alarm.active;
+        alarmElement.querySelector('.btn-delete').addEventListener('click', () => {
+            if (confirm('Удалить этот будильник?')) {
+                alarms = alarms.filter(a => a.id !== alarm.id);
                 saveAlarms();
                 renderAlarms();
-            });
-            
-            alarmElement.querySelector('.btn-edit').addEventListener('click', () => {
-                editAlarm(alarm);
-            });
-            
-            alarmElement.querySelector('.btn-delete').addEventListener('click', () => {
-                if (confirm('Удалить этот будильник?')) {
-                    alarms = alarms.filter(a => a.id !== alarm.id);
-                    saveAlarms();
-                    renderAlarms();
-                }
-            });
-            
-            alarmsContainer.appendChild(alarmElement);
+            }
         });
+        
+        alarmsContainer.appendChild(alarmElement);
+    });
     }
     
     // Получение читаемого имени звука
@@ -385,8 +414,21 @@ document.addEventListener('DOMContentLoaded', function() {
             font-weight: 600;
             transition: background-color 0.3s;
         }
-        
-        .btn-stop:hover {
+
+        .btn-snooze {
+            background-color: var(--hover-color);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-right: 10px;
+            transition: background-color 0.3s;
+        }
+
+        .btn-snooze:hover, .btn-stop:hover {
             background-color: #ff3a7f;
         }
         
