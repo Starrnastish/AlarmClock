@@ -115,6 +115,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             alarms.push(snoozedAlarm); // Add the snoozed alarm to the alarms
             saveAlarms();
+            renderAlarms(); // Обновляем список будильников
             document.body.removeChild(notification);
         });
         
